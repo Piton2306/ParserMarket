@@ -1,3 +1,5 @@
+from urllib.parse import urljoin
+
 import requests
 from bs4 import BeautifulSoup
 
@@ -18,15 +20,15 @@ def get_pagination_links(base_url):
     links = pagination.find_all("a", href=True)
 
     # Извлекаем href и формируем полный URL
-    hrefs = [base_url + link["href"] for link in links if "PAGEN_2=" in link["href"]]
+    hrefs = [urljoin(base_url, link["href"]) for link in links if "PAGEN_2=" in link["href"]]
 
     # Добавляем первую страницу в список
     hrefs.insert(0, base_url)
+    print(list(set(hrefs)))
+    return sorted(list(set(hrefs)))  # Убираем возможные дубликаты
 
-    return list(set(hrefs))  # Убираем возможные дубликаты
 
-
-# Функция для парсинга товаров (название и цена)
+# Функция для парсинга товаров (название, цена, наличие)
 def parse_wishmaster(url):
     response = requests.get(url)
     soup = BeautifulSoup(response.content, "html.parser")
@@ -34,13 +36,16 @@ def parse_wishmaster(url):
     # Ищем товары
     names = soup.find_all("div", class_="catalog-rounded-item__name")
     prices = soup.find_all("span", class_="catalog-rounded-item__price")
+    stock_statuses = soup.find_all("div", class_="catalog-rounded-item__quantity-text")
 
     products = []
-    for name, price in zip(names, prices):
+    for name, price, stock in zip(names, prices, stock_statuses):
         product_name = name.text.strip()
         product_price = price.text.strip()
-        products.append((product_name, product_price))
+        stock_text = stock.text.strip()
 
+        products.append((product_name, product_price, stock_text))
+    print(f"Найдено {len(products)}")
     return products
 
 
@@ -60,7 +65,7 @@ def parse_all_pages(base_url):
 
 
 # Основной URL (первая страница)
-base_url = "https://wishmaster.me/catalog/smartfony/smartfony_apple/iphone_16_pro/"
+base_url = "https://wishmaster.me/catalog/noutbuki/noutbuki_apple/"
 
 # Запуск парсинга
 products = parse_all_pages(base_url)
@@ -70,4 +75,5 @@ print("\nТовары и их цены на сайте Wishmaster:")
 for product in products:
     print(f"Название: {product[0]}")
     print(f"Цена: {product[1]}")
+    print(f"Наличие: {product[2]}")
     print("-" * 50)
