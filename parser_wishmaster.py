@@ -1,10 +1,8 @@
-from urllib.parse import urljoin
-
+# Функция для поиска всех ссылок (href) в блоке пагинации
 import requests
 from bs4 import BeautifulSoup
 
 
-# Функция для поиска всех ссылок (href) в блоке пагинации
 def get_pagination_links(base_url):
     response = requests.get(base_url)
     soup = BeautifulSoup(response.content, "html.parser")
@@ -14,18 +12,33 @@ def get_pagination_links(base_url):
 
     if not pagination:
         print("Пагинация не найдена. Будем парсить только первую страницу.")
-        return [base_url]  # Если пагинации нет, возвращаем только первую страницу
+        return [base_url]
 
-    # Ищем все ссылки (a) внутри блока пагинации
+    # Ищем все ссылки внутри блока пагинации
     links = pagination.find_all("a", href=True)
 
-    # Извлекаем href и формируем полный URL
-    hrefs = [urljoin(base_url, link["href"]) for link in links if "PAGEN_2=" in link["href"]]
+    # Собираем номера страниц
+    page_numbers = []
+    for link in links:
+        href = link["href"]
+        if "PAGEN_2=" in href:
+            try:
+                page_num = int(href.split("PAGEN_2=")[-1])  # Достаем номер страницы
+                page_numbers.append(page_num)
+            except ValueError:
+                continue  # Если что-то пошло не так, пропускаем
 
-    # Добавляем первую страницу в список
-    hrefs.insert(0, base_url)
-    print(list(set(hrefs)))
-    return sorted(list(set(hrefs)))  # Убираем возможные дубликаты
+    if not page_numbers:
+        return [base_url]  # Если нет других страниц, только первая
+
+    max_page = max(page_numbers)  # Определяем последнюю страницу
+
+    # Формируем список ссылок от 1 до max_page
+    all_pages = [base_url]  # Добавляем первую страницу
+    for page in range(2, max_page + 1):
+        all_pages.append(f"{base_url}?PAGEN_2={page}")
+
+    return all_pages
 
 
 # Функция для парсинга товаров (название, цена, наличие)
