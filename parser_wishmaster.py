@@ -74,26 +74,25 @@ def save_to_db(category, products):
                 .replace(",", ".")  # Заменяем запятую на точку (если есть)
             )
 
-            # Получаем старую цену
+            # Получаем последнюю цену из базы данных
             old_price = get_last_price(cursor, name)
 
             # Если товар уже есть в базе и цена не изменилась — пропускаем
-            if old_price == clean_new_price:
-                logging.info(f"🔹 Цена не изменилась для {name}, пропускаем")
-                continue
+            if old_price:
+                clean_old_price = (
+                    old_price
+                    .replace("\u00A0", "")
+                    .replace(" ", "")
+                    .replace("руб.", "")
+                    .replace(",", ".")
+                )
+                if clean_new_price == clean_old_price:
+                    logging.info(f"🔹 Цена не изменилась для {name}, пропускаем")
+                    continue
 
             # Вычисляем разницу в цене
             if old_price:
                 try:
-                    # Очищаем старую цену
-                    clean_old_price = (
-                        old_price
-                        .replace("\u00A0", "")
-                        .replace(" ", "")
-                        .replace("руб.", "")
-                        .replace(",", ".")
-                    )
-                    # Преобразуем в числа и вычисляем разницу
                     price_difference = float(clean_new_price) - float(clean_old_price)
                 except ValueError as e:
                     logging.error(f"Ошибка при вычислении разницы цен для {name}: {e}")
