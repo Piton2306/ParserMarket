@@ -1,10 +1,19 @@
-# Функция для поиска всех ссылок (href) в блоке пагинации
 import requests
 from bs4 import BeautifulSoup
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
 
+
+# Функция для поиска всех ссылок (href) в блоке пагинации
 def get_pagination_links(base_url):
-    response = requests.get(base_url)
+    response = requests.get(base_url, headers=HEADERS)
+
+    if response.status_code != 200:
+        print(f"Ошибка при доступе к {base_url}: {response.status_code}")
+        return [base_url]  # Если ошибка, парсим только первую страницу
+
     soup = BeautifulSoup(response.content, "html.parser")
 
     # Ищем блок пагинации
@@ -43,13 +52,22 @@ def get_pagination_links(base_url):
 
 # Функция для парсинга товаров (название, цена, наличие)
 def parse_wishmaster(url):
-    response = requests.get(url)
+    response = requests.get(url, headers=HEADERS)
+
+    if response.status_code != 200:
+        print(f"Ошибка при доступе к {url}: {response.status_code}")
+        return []  # Если ошибка, пропускаем страницу
+
     soup = BeautifulSoup(response.content, "html.parser")
 
     # Ищем товары
     names = soup.find_all("div", class_="catalog-rounded-item__name")
     prices = soup.find_all("span", class_="catalog-rounded-item__price")
     stock_statuses = soup.find_all("div", class_="catalog-rounded-item__quantity-text")
+
+    if not names or not prices or not stock_statuses:
+        print(f"Данные не найдены на странице: {url}")
+        return []  # Если на странице нет товаров
 
     products = []
     for name, price, stock in zip(names, prices, stock_statuses):
@@ -58,7 +76,8 @@ def parse_wishmaster(url):
         stock_text = stock.text.strip()
 
         products.append((product_name, product_price, stock_text))
-    print(f"Найдено {len(products)}")
+
+    print(f"Найдено товаров: {len(products)} на странице {url}")
     return products
 
 
