@@ -11,7 +11,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("wishmaster_parser.log", encoding="utf-8"),  # Логи в файл
+        logging.FileHandler("../wishmaster_parser.log", encoding="utf-8"),  # Логи в файл
         logging.StreamHandler()  # Логи в консоль
     ]
 )
@@ -21,7 +21,7 @@ HEADERS = {
 }
 
 categories = {
-    "https://wishmaster.me/catalog/smartfony/smartfony_apple/iphone_16_pro/": "Apple iPhone 16 Pro",
+    "https://wishmaster.me/catalog/smartfony/smartfony_apple/iphone_16_pro/": "Apple iPhone 16 Pro"
 }
 
 
@@ -59,7 +59,7 @@ def get_last_price(cursor, name):
 
 def save_to_db(category, products):
     try:
-        conn = sqlite3.connect("wishmaster.db")
+        conn = sqlite3.connect("../wishmaster.db")
         cursor = conn.cursor()
 
         for product in products:
