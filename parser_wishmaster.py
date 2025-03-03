@@ -1,159 +1,188 @@
+import logging
 import sqlite3
+import time
 from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup
 
+# Настройка логов
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("wishmaster_parser.log", encoding="utf-8"),  # Логи в файл
+        logging.StreamHandler()  # Логи в консоль
+    ]
+)
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
-# Категории для парсинга
 categories = {
     "https://wishmaster.me/catalog/smartfony/smartfony_apple/iphone_16_pro/": "Apple iPhone 16 Pro",
-    "https://wishmaster.me/catalog/smartfony/smartfony_apple/iphone_16_plus/": "Apple iPhone 16 Plus",
 }
 
 
-# Создание базы данных и таблицы (если не существует)
 def create_database():
-    conn = sqlite3.connect("wishmaster.db")
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS products (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category TEXT,
-            name TEXT,
-            price TEXT,
-            price_difference TEXT,
-            stock_status TEXT,
-            timestamp TEXT
-        )
-    """)
-
-    # Добавляем индекс для ускорения поиска
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_name ON products (name);")
-
-    conn.commit()
-    conn.close()
-
-
-# Получаем последнюю цену товара
-def get_last_price(cursor, name):
-    cursor.execute("SELECT price FROM products WHERE name = ? ORDER BY timestamp DESC LIMIT 1", (name,))
-    result = cursor.fetchone()
-    return result[0] if result else None
-
-
-# Функция для вставки данных в базу
-def save_to_db(category, products):
-    conn = sqlite3.connect("wishmaster.db")
-    cursor = conn.cursor()
-
-    for product in products:
-        name, new_price, stock_status = product
-
-        # Получаем предыдущую цену
-        old_price = get_last_price(cursor, name)
-
-        # Вычисляем разницу
-        if old_price and old_price != new_price:
-            try:
-                price_diff = float(new_price.replace(" ", "").replace("₽", "")) - float(
-                    old_price.replace(" ", "").replace("₽", ""))
-                price_diff = f"{price_diff:+,.2f} ₽".replace(",", " ")  # Приводим к читаемому виду
-            except ValueError:
-                price_diff = "Ошибка вычисления"
-        else:
-            price_diff = "0 ₽" if old_price else "Новый товар"
-
-        # Добавляем новую запись в БД (старая остается)
+    try:
+        conn = sqlite3.connect("wishmaster.db")
+        cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO products (category, name, price, price_difference, stock_status, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (category, name, new_price, price_diff, stock_status, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category TEXT,
+                name TEXT,
+                price TEXT,
+                price_difference TEXT,
+                stock_status TEXT,
+                timestamp TEXT
+            )
+        """)
+        conn.commit()
+    except Exception as e:
+        logging.error(f"Ошибка при создании базы данных: {e}")
+    finally:
+        conn.close()
 
-        print(f"✅ Добавлена запись: {name} | Цена: {new_price} | Разница: {price_diff}")
 
-    conn.commit()
-    conn.close()
+def get_last_price(cursor, name):
+    try:
+        cursor.execute("SELECT price FROM products WHERE name = ? ORDER BY timestamp DESC LIMIT 1", (name,))
+        result = cursor.fetchone()
+        return result[0] if result else None
+    except Exception as e:
+        logging.error(f"Ошибка при получении последней цены: {e}")
+        return None
 
 
-# Получение всех страниц пагинации
-def get_pagination_links(base_url):
-    response = requests.get(base_url, headers=HEADERS)
-    if response.status_code != 200:
-        print(f"❌ Ошибка {response.status_code} при доступе к {base_url}")
-        return [base_url]
+def save_to_db(category, products):
+    try:
+        conn = sqlite3.connect("wishmaster.db")
+        cursor = conn.cursor()
 
-    soup = BeautifulSoup(response.content, "html.parser")
-    pagination = soup.find("div", class_="catalog-pagination__nums")
+        for product in products:
+            name, new_price, stock_status = product
 
-    if not pagination:
-        print(f"ℹ️ Пагинация не найдена для {base_url}. Парсим только первую страницу.")
-        return [base_url]
+            # Очистка цены от пробелов и символов валюты
+            clean_new_price = (
+                new_price
+                .replace("\u00A0", "")  # Удаляем неразрывные пробелы
+                .replace(" ", "")  # Удаляем обычные пробелы
+                .replace("руб.", "")  # Удаляем символ валюты
+                .replace(",", ".")  # Заменяем запятую на точку (если есть)
+            )
 
-    links = pagination.find_all("a", href=True)
-    page_numbers = []
+            # Получаем старую цену
+            old_price = get_last_price(cursor, name)
 
-    for link in links:
-        href = link["href"]
-        if "PAGEN_2=" in href:
-            try:
-                page_numbers.append(int(href.split("PAGEN_2=")[-1]))
-            except ValueError:
+            # Если товар уже есть в базе и цена не изменилась — пропускаем
+            if old_price == clean_new_price:
+                logging.info(f"🔹 Цена не изменилась для {name}, пропускаем")
                 continue
 
-    max_page = max(page_numbers) if page_numbers else 1
-    return [f"{base_url}?PAGEN_2={page}" for page in range(1, max_page + 1)]
+            # Вычисляем разницу в цене
+            if old_price:
+                try:
+                    # Очищаем старую цену
+                    clean_old_price = (
+                        old_price
+                        .replace("\u00A0", "")
+                        .replace(" ", "")
+                        .replace("руб.", "")
+                        .replace(",", ".")
+                    )
+                    # Преобразуем в числа и вычисляем разницу
+                    price_difference = float(clean_new_price) - float(clean_old_price)
+                except ValueError as e:
+                    logging.error(f"Ошибка при вычислении разницы цен для {name}: {e}")
+                    price_difference = "Ошибка вычисления"
+            else:
+                price_difference = "Новая запись"  # Для первого добавления товара
+
+            # Добавляем запись в базу
+            cursor.execute("""
+                INSERT INTO products (category, name, price, stock_status, timestamp, price_difference)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                category, name, new_price, stock_status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                str(price_difference)
+            ))
+
+            logging.info(f"✅ Добавлен новый товар: {name} | Цена: {new_price} | Разница: {price_difference}")
+
+        conn.commit()
+    except Exception as e:
+        logging.error(f"Ошибка при сохранении в базу данных: {e}")
+    finally:
+        conn.close()
 
 
-# Парсинг товаров с одной страницы
+def get_pagination_links(base_url):
+    try:
+        response = requests.get(base_url, headers=HEADERS)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, "html.parser")
+        pagination = soup.find("div", class_="catalog-pagination__nums")
+
+        if not pagination:
+            logging.info(f"Пагинация не найдена для {base_url}. Парсим только первую страницу.")
+            return [base_url]
+
+        links = pagination.find_all("a", href=True)
+        page_numbers = [int(link["href"].split("PAGEN_2=")[-1]) for link in links if "PAGEN_2=" in link["href"]]
+        max_page = max(page_numbers) if page_numbers else 1
+        return [f"{base_url}?PAGEN_2={page}" for page in range(1, max_page + 1)]
+    except Exception as e:
+        logging.error(f"Ошибка при получении ссылок пагинации: {e}")
+        return [base_url]
+
+
 def parse_wishmaster(url):
-    response = requests.get(url, headers=HEADERS)
-    if response.status_code != 200:
-        print(f"❌ Ошибка {response.status_code} при доступе к {url}")
+    try:
+        response = requests.get(url, headers=HEADERS)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, "html.parser")
+
+        names = soup.find_all("div", class_="catalog-rounded-item__name")
+        prices = soup.find_all("span", class_="catalog-rounded-item__price")
+        stock_statuses = soup.find_all("div", class_="catalog-rounded-item__quantity-text")
+
+        if not names or not prices or not stock_statuses:
+            logging.warning(f"Данные не найдены на странице: {url}")
+            return []
+
+        products = [
+            (name.text.strip(), price.text.strip(), stock.text.strip())
+            for name, price, stock in zip(names, prices, stock_statuses)
+        ]
+
+        logging.info(f"Найдено товаров: {len(products)} на {url}")
+        return products
+    except Exception as e:
+        logging.error(f"Ошибка при парсинге страницы {url}: {e}")
         return []
 
-    soup = BeautifulSoup(response.content, "html.parser")
 
-    names = soup.find_all("div", class_="catalog-rounded-item__name")
-    prices = soup.find_all("span", class_="catalog-rounded-item__price")
-    stock_statuses = soup.find_all("div", class_="catalog-rounded-item__quantity-text")
-
-    if not names or not prices or not stock_statuses:
-        print(f"⚠️ Данные не найдены на странице: {url}")
-        return []
-
-    products = [
-        (name.text.strip(), price.text.strip(), stock.text.strip())
-        for name, price, stock in zip(names, prices, stock_statuses)
-    ]
-
-    print(f"🔎 Найдено товаров: {len(products)} на {url}")
-    return products
-
-
-# Парсинг всех страниц в категории
 def parse_category(category_url, category_name):
-    print(f"\n🔍 Начинаем парсинг категории: {category_name} ({category_url})")
+    logging.info(f"Начинаем парсинг категории: {category_name} ({category_url})")
     pages = get_pagination_links(category_url)
-    print(f"📂 Найдено страниц: {len(pages)}")
+    logging.info(f"Найдено страниц: {len(pages)}")
 
     all_products = []
     for index, url in enumerate(pages, start=1):
-        print(f"📄 Парсинг страницы {index} → {url}")
+        logging.info(f"Парсинг страницы {index} → {url}")
         products = parse_wishmaster(url)
         all_products.extend(products)
+        time.sleep(1)  # Задержка между запросами
 
     save_to_db(category_name, all_products)
 
 
-# Основной запуск
 if __name__ == "__main__":
     create_database()
     for url, category in categories.items():
         parse_category(url, category)
 
-    print("\n✅ Все данные успешно сохранены в базе!")
+    logging.info("Все данные успешно сохранены в базе!")
