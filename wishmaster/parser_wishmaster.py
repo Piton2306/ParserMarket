@@ -6,28 +6,23 @@ from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 
+# Импортируем настройки из config.py
+from config import HEADERS, categories, DELAY_BETWEEN_REQUESTS, DATABASE_PATH, LOG_FILE_PATH
+
 # Настройка логов
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("../wishmaster_parser.log", encoding="utf-8"),  # Логи в файл
+        logging.FileHandler(LOG_FILE_PATH, encoding="utf-8"),  # Логи в файл
         logging.StreamHandler()  # Логи в консоль
     ]
 )
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-}
-
-categories = {
-    "https://wishmaster.me/catalog/smartfony/smartfony_apple/iphone_16_pro/": "Apple iPhone 16 Pro"
-}
-
 
 def create_database():
     try:
-        conn = sqlite3.connect("wishmaster.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS products (
@@ -59,7 +54,7 @@ def get_last_price(cursor, name):
 
 def save_to_db(category, products):
     try:
-        conn = sqlite3.connect("../wishmaster.db")
+        conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
 
         for product in products:
@@ -174,7 +169,7 @@ def parse_category(category_url, category_name):
         logging.info(f"Парсинг страницы {index} → {url}")
         products = parse_wishmaster(url)
         all_products.extend(products)
-        time.sleep(1)  # Задержка между запросами
+        time.sleep(DELAY_BETWEEN_REQUESTS)  # Используем задержку из конфига
 
     save_to_db(category_name, all_products)
 

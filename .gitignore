@@ -1,2 +1,4 @@
 /.venv/
 /.idea/
+/wishmaster/wishmaster.db
+/wishmaster/wishmaster_parser.log
