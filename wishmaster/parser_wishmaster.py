@@ -29,12 +29,14 @@ def create_database():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 category TEXT,
                 name TEXT,
-                price TEXT,
+                price_text TEXT,
+                price_int INTEGER,
                 price_difference TEXT,
                 stock_status TEXT,
                 timestamp TEXT
             )
         """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_name ON products (name)")  # Индекс на поле name
         conn.commit()
     except Exception as e:
         logging.error(f"Ошибка при создании базы данных: {e}")
@@ -44,7 +46,7 @@ def create_database():
 
 def get_last_price(cursor, name):
     try:
-        cursor.execute("SELECT price FROM products WHERE name = ? ORDER BY timestamp DESC LIMIT 1", (name,))
+        cursor.execute("SELECT price_int FROM products WHERE name = ? ORDER BY timestamp DESC LIMIT 1", (name,))
         result = cursor.fetchone()
         return result[0] if result else None
     except Exception as e:
@@ -56,39 +58,37 @@ def save_to_db(category, products):
     try:
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
+        conn.execute("BEGIN TRANSACTION")  # Начало транзакции
 
         for product in products:
             name, new_price, stock_status = product
 
             # Очистка цены от пробелов и символов валюты
-            clean_new_price = (
-                new_price
-                .replace("\u00A0", "")  # Удаляем неразрывные пробелы
-                .replace(" ", "")  # Удаляем обычные пробелы
-                .replace("руб.", "")  # Удаляем символ валюты
-                .replace(",", ".")  # Заменяем запятую на точку (если есть)
-            )
+            try:
+                clean_new_price = int(
+                    new_price
+                    .replace("\u00A0", "")  # Удаляем неразрывные пробелы
+                    .replace(" ", "")  # Удаляем обычные пробелы
+                    .replace("руб.", "")  # Удаляем символ валюты
+                    .replace(",", ".")  # Заменяем запятую на точку (если есть)
+                )
+            except ValueError as e:
+                logging.error(f"Ошибка при преобразовании цены для {name}: {e}")
+                continue  # Пропускаем этот товар
 
             # Получаем последнюю цену из базы данных
             old_price = get_last_price(cursor, name)
 
             # Если товар уже есть в базе и цена не изменилась — пропускаем
             if old_price:
-                clean_old_price = (
-                    old_price
-                    .replace("\u00A0", "")
-                    .replace(" ", "")
-                    .replace("руб.", "")
-                    .replace(",", ".")
-                )
-                if clean_new_price == clean_old_price:
+                if clean_new_price == old_price:
                     logging.info(f"🔹 Цена не изменилась для {name}, пропускаем")
                     continue
 
             # Вычисляем разницу в цене
             if old_price:
                 try:
-                    price_difference = float(clean_new_price) - float(clean_old_price)
+                    price_difference = float(clean_new_price) - float(old_price)
                 except ValueError as e:
                     logging.error(f"Ошибка при вычислении разницы цен для {name}: {e}")
                     price_difference = "Ошибка вычисления"
@@ -97,17 +97,18 @@ def save_to_db(category, products):
 
             # Добавляем запись в базу
             cursor.execute("""
-                INSERT INTO products (category, name, price, stock_status, timestamp, price_difference)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO products (category, name, price_text, price_int, stock_status, timestamp, price_difference)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
-                category, name, new_price, stock_status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                category, name, new_price, clean_new_price, stock_status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 str(price_difference)
             ))
 
             logging.info(f"✅ Добавлен новый товар: {name} | Цена: {new_price} | Разница: {price_difference}")
 
-        conn.commit()
+        conn.commit()  # Фиксация транзакции
     except Exception as e:
+        conn.rollback()  # Откат в случае ошибки
         logging.error(f"Ошибка при сохранении в базу данных: {e}")
     finally:
         conn.close()
@@ -175,8 +176,9 @@ def parse_category(category_url, category_name):
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     create_database()
     for url, category in categories.items():
         parse_category(url, category)
 
-    logging.info("Все данные успешно сохранены в базе!")
+    logging.info(f"Все данные успешно сохранены в базе! Время выполнения: {time.time() - start_time:.2f} секунд")

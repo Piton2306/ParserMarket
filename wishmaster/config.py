@@ -5,7 +5,7 @@ HEADERS = {
 
 # Категории для парсинга (URL: Название категории)
 categories = {
-    "https://wishmaster.me/catalog/smartfony/smartfony_apple/iphone_16_pro/": "Apple iPhone 16 Pro"
+    "https://wishmaster.me/catalog/smartfony/smartfony_apple/iphone_16_pro/": "Apple iPhone 16 Pro",
 }
 
 # Задержка между запросами (в секундах)
