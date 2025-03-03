@@ -35,15 +35,29 @@ def create_database():
     conn.close()
 
 
+# Проверка, изменилась ли цена
+def is_price_changed(cursor, name, new_price):
+    cursor.execute("SELECT price FROM products WHERE name = ?", (name,))
+    result = cursor.fetchone()
+    if result:
+        return result[0] != new_price  # True, если цена изменилась
+    return True  # Если товара нет в базе, добавляем
+
+
+# Функция для вставки данных в базу с проверкой цены
 def save_to_db(category, products):
     conn = sqlite3.connect("wishmaster.db")
     cursor = conn.cursor()
 
     for product in products:
-        cursor.execute("""
-            INSERT INTO products (category, name, price, stock_status, timestamp)
-            VALUES (?, ?, ?, ?, ?)
-        """, (category, product[0], product[1], product[2], datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        name, price, stock_status = product
+
+        # Проверяем, изменилась ли цена
+        if is_price_changed(cursor, name, price):
+            cursor.execute("""
+                INSERT INTO products (category, name, price, stock_status, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+            """, (category, name, price, stock_status, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
     conn.commit()
     conn.close()
@@ -59,58 +73,53 @@ def get_pagination_links(base_url):
 
     soup = BeautifulSoup(response.content, "html.parser")
 
-    # Ищем блок пагинации
     pagination = soup.find("div", class_="catalog-pagination__nums")
 
     if not pagination:
         print(f"Пагинация не найдена для {base_url}. Будем парсить только первую страницу.")
         return [base_url]
 
-    # Ищем все ссылки внутри блока пагинации
     links = pagination.find_all("a", href=True)
 
-    # Собираем номера страниц
     page_numbers = []
     for link in links:
         href = link["href"]
         if "PAGEN_2=" in href:
             try:
-                page_num = int(href.split("PAGEN_2=")[-1])  # Достаем номер страницы
+                page_num = int(href.split("PAGEN_2=")[-1])
                 page_numbers.append(page_num)
             except ValueError:
-                continue  # Если что-то пошло не так, пропускаем
+                continue
 
     if not page_numbers:
-        return [base_url]  # Если нет других страниц, только первая
+        return [base_url]
 
-    max_page = max(page_numbers)  # Определяем последнюю страницу
+    max_page = max(page_numbers)
 
-    # Формируем список ссылок от 1 до max_page
-    all_pages = [base_url]  # Добавляем первую страницу
+    all_pages = [base_url]
     for page in range(2, max_page + 1):
         all_pages.append(f"{base_url}?PAGEN_2={page}")
 
     return all_pages
 
 
-# Функция для парсинга товаров (название, цена, наличие)
+# Функция для парсинга товаров
 def parse_wishmaster(url):
     response = requests.get(url, headers=HEADERS)
 
     if response.status_code != 200:
         print(f"Ошибка при доступе к {url}: {response.status_code}")
-        return []  # Если ошибка, пропускаем страницу
+        return []
 
     soup = BeautifulSoup(response.content, "html.parser")
 
-    # Ищем товары
     names = soup.find_all("div", class_="catalog-rounded-item__name")
     prices = soup.find_all("span", class_="catalog-rounded-item__price")
     stock_statuses = soup.find_all("div", class_="catalog-rounded-item__quantity-text")
 
     if not names or not prices or not stock_statuses:
         print(f"Данные не найдены на странице: {url}")
-        return []  # Если на странице нет товаров
+        return []
 
     products = []
     for name, price, stock in zip(names, prices, stock_statuses):
@@ -144,9 +153,6 @@ def parse_category(category_url, category_name):
 
 # Создание базы перед парсингом
 create_database()
-
-# Запуск парсинга для всех категорий
-all_category_products = {}
 
 # Запуск парсинга всех категорий
 for url, category_name in categories.items():
