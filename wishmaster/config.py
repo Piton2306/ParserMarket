@@ -8,14 +8,17 @@ HEADERS = {
 # Категории для парсинга (URL: Название категории)
 categories = {
     "https://wishmaster.me/catalog/smartfony/smartfony_apple/iphone_16_pro/": "Apple iPhone 16 Pro",
-
+    "https://wishmaster.me/catalog/smartfony/smartfony_apple": "Смартфоны Apple iPhone (Эппл Айфон)",
+    "https://wishmaster.me/catalog/smartfony/smartfony_google/": "Смартфоны Google (Гугл)",
+    "https://wishmaster.me/catalog/noutbuki/noutbuki_apple/": "Ноутбуки Apple MacBook (Эппл Макбук)",
 }
 
 # Задержка между запросами (в секундах)
 DELAY_BETWEEN_REQUESTS = 1
 
-# Путь к файлу базы данных
-DATABASE_PATH = os.path.join("..", "db", "wishmaster.db")
+# Получаем абсолютный путь к директории, где находится текущий скрипт
+base_dir = os.path.dirname(os.path.abspath(__file__))
 
-# Директория для логов
-LOG_DIR = os.path.join("..", "logs")
+# Определяем абсолютные пути для базы данных и логов
+DATABASE_PATH = os.path.abspath(os.path.join(base_dir, "..", "db", "wishmaster.db"))
+LOG_DIR = os.path.abspath(os.path.join(base_dir, "..", "logs"))
