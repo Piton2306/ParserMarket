@@ -1,4 +1,5 @@
 import logging
+import os
 import sqlite3
 import time
 from datetime import datetime
@@ -7,14 +8,26 @@ import requests
 from bs4 import BeautifulSoup
 
 # Импортируем настройки из config.py
-from config import HEADERS, categories, DELAY_BETWEEN_REQUESTS, DATABASE_PATH, LOG_FILE_PATH
+from config import HEADERS, categories, DELAY_BETWEEN_REQUESTS, DATABASE_PATH, LOG_DIR
+
+# Создаем директорию для базы данных, если она не существует
+db_directory = os.path.dirname(DATABASE_PATH)
+if not os.path.exists(db_directory):
+    os.makedirs(db_directory)
+
+# Создаем директорию для логов, если она не существует
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+# Генерируем уникальное имя файла лога с меткой времени
+log_filename = datetime.now().strftime("wishmaster_%Y-%m-%d_%H-%M-%S") + "_log.txt"
+log_file_path = f"{LOG_DIR}/{log_filename}"
 
 # Настройка логов
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(LOG_FILE_PATH, encoding="utf-8"),  # Логи в файл
+        logging.FileHandler(log_file_path, encoding="utf-8"),  # Логи в файл
         logging.StreamHandler()  # Логи в консоль
     ]
 )

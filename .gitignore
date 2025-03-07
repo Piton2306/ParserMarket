@@ -2,3 +2,5 @@
 /.idea/
 /wishmaster/wishmaster.db
 /wishmaster/wishmaster_parser.log
+/db/wishmaster.db
+/logs/

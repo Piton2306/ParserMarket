@@ -74,7 +74,7 @@ def print_directory_structure(start_path, output_file, exclude_dirs=None, exclud
 if __name__ == "__main__":
     start_path = "."  # Начальная директория (текущая директория)
     output_file = "directory_structure.txt"  # Файл, в который будет записано содержимое
-    exclude_dirs = [".venv", ".git", ".idea", "__pycache__", "file", "venv"]  # Папки, которые нужно исключить
+    exclude_dirs = ["cifrus","db",".venv", ".git", ".idea", "__pycache__", "file", "venv","logs"]  # Папки, которые нужно исключить
     exclude_files = [".tmp", ".gitignore", "database_parser_dollars.db", "directory_structure.txt", "test.py",
                      "tttt.py",
                      "requirements.txt", ".log", "print_directory_structure.py", "init.py",
