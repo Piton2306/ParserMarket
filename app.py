@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 # Функция для подключения к базе данных и получения товаров
 def get_products(query=""):
-    conn = sqlite3.connect('db/wishmaster.db')
+    conn = sqlite3.connect('db/wishmaster.db')  # Убедитесь, что путь правильный
     cursor = conn.cursor()
     cursor.execute("SELECT DISTINCT name FROM products WHERE name LIKE ?", ('%' + query + '%',))
     products = [row[0] for row in cursor.fetchall()]
@@ -21,8 +21,8 @@ def get_products(query=""):
 # Функция для построения графика для выбранного товара
 def create_price_chart(product_name):
     try:
-        print(f"Построение графика для товара: {product_name}")  # Отладочное сообщение
-        conn = sqlite3.connect('wishmaster.db')
+        # Подключаемся к базе данных и получаем данные по товару
+        conn = sqlite3.connect('db/wishmaster.db')
         query = """
         SELECT timestamp, price_int
         FROM products
@@ -32,17 +32,19 @@ def create_price_chart(product_name):
         df = pd.read_sql_query(query, conn, params=(product_name,))
         conn.close()
 
-        print(f"Данные из базы данных: {df}")  # Отладочное сообщение
-
+        # Проверка, есть ли данные
         if df.empty:
             print(f"Нет данных для товара: {product_name}")
             return None
 
+        # Преобразуем столбец timestamp в формат datetime
         df['timestamp'] = pd.to_datetime(df['timestamp'])
 
+        # Построение графика
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(df['timestamp'], df['price_int'], marker='o', linestyle='-', label=product_name)
 
+        # Добавляем подписи для цен на графике
         for i, row in df.iterrows():
             ax.text(row['timestamp'], row['price_int'], str(row['price_int']), ha='right', va='bottom', fontsize=9)
 
@@ -52,20 +54,24 @@ def create_price_chart(product_name):
         ax.grid(True)
         ax.legend()
 
+        # Сохраняем график в буфер
         img_buf = io.BytesIO()
         plt.tight_layout()
         plt.savefig(img_buf, format='png')
         img_buf.seek(0)
 
+        # Преобразуем изображение в base64 строку
         img_base64 = base64.b64encode(img_buf.getvalue()).decode('utf-8')
         img_buf.close()
+
+        # Закрываем matplotlib, чтобы избежать GUI предупреждения
         plt.close(fig)
 
-        print("График успешно создан")  # Отладочное сообщение
+        # Возвращаем base64 строку изображения
         return img_base64
 
     except Exception as e:
-        print(f"Ошибка при создании графика: {e}")  # Отладочное сообщение
+        print(f"Ошибка при создании графика: {e}")
         return None
 
 @app.route('/')
@@ -83,7 +89,7 @@ def chart():
     product_name = request.args.get('product_name', '')
     if product_name:
         try:
-            conn = sqlite3.connect('db/wishmaster.db')
+            conn = sqlite3.connect('db/wishmaster.db')  # Убедитесь, что путь правильный
             query = """
             SELECT timestamp, price_int, stock_status
             FROM products

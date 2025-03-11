@@ -33,6 +33,9 @@ function fetchChart(productName) {
                 chartInstance.destroy();
             }
 
+            // Отладочное сообщение: выводим статусы наличия
+            console.log("Статусы наличия:", data.stock_status);
+
             // Создаём новый график
             const ctx = document.getElementById('price-chart').getContext('2d');
             chartInstance = new Chart(ctx, {
@@ -46,9 +49,15 @@ function fetchChart(productName) {
                         backgroundColor: 'rgba(75, 192, 192, 0.2)',
                         borderWidth: 2,
                         fill: true,
-                        pointBackgroundColor: data.stock_status.map(status =>
-                            status === 'in_stock' ? 'green' : 'red'  // Цвет точек в зависимости от статуса
-                        ),
+                        pointBackgroundColor: data.stock_status.map(status => {
+                            // Приводим статус к нижнему регистру и проверяем
+                            const lowerStatus = status.toLowerCase();
+                            if (lowerStatus.includes("в наличии") || lowerStatus === "in_stock") {
+                                return 'green';  // Товар в наличии
+                            } else {
+                                return 'red';  // Товар отсутствует
+                            }
+                        }),
                         pointRadius: 5,  // Размер точек
                     }]
                 },
@@ -65,7 +74,8 @@ function fetchChart(productName) {
                                     const label = context.dataset.label || '';
                                     const value = context.raw || 0;
                                     const status = data.stock_status[context.dataIndex];
-                                    return `${label}: ${value} (${status === 'in_stock' ? 'В наличии' : 'Нет в наличии'})`;
+                                    const lowerStatus = status.toLowerCase();
+                                    return `${label}: ${value} (${lowerStatus.includes("в наличии") || lowerStatus === "in_stock" ? 'В наличии' : 'Нет в наличии'})`;
                                 }
                             }
                         }
