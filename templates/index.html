@@ -4,33 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Выбор товара</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        #chart-container {
-            margin-bottom: 20px;
-            width: 100%;
-            max-width: 800px;
-        }
-        #search-container {
-            margin-top: 20px;
-        }
-        #product-list {
-            margin-top: 10px;
-            list-style-type: none;
-            padding: 0;
-        }
-        #product-list li {
-            margin: 5px 0;
-            cursor: pointer;
-        }
-        input[type="text"] {
-            padding: 5px;
-            width: 300px;
-        }
-    </style>
 </head>
 <body>
     <h1>График изменения цены</h1>
@@ -43,86 +16,10 @@
         <input type="text" id="search-input" placeholder="Введите название товара..." oninput="searchProducts()">
         <ul id="product-list"></ul>
     </div>
-
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Подключение Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        let chartInstance = null;  // Для хранения экземпляра графика
-
-        // Функция для поиска товаров
-        function searchProducts() {
-            const query = document.getElementById('search-input').value;
-            fetch(`/search?query=${query}`)
-                .then(response => response.json())
-                .then(data => {
-                    const productList = document.getElementById('product-list');
-                    productList.innerHTML = '';
-                    data.forEach(product => {
-                        const li = document.createElement('li');
-                        li.textContent = product;
-                        li.onclick = () => fetchChart(product);
-                        productList.appendChild(li);
-                    });
-                })
-                .catch(error => console.log('Ошибка:', error));
-        }
-
-        // Функция для получения данных и отрисовки графика
-        function fetchChart(productName) {
-            fetch(`/chart?product_name=${productName}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        alert(data.error);
-                        return;
-                    }
-
-                    // Уничтожаем предыдущий график, если он существует
-                    if (chartInstance) {
-                        chartInstance.destroy();
-                    }
-
-                    // Создаём новый график
-                    const ctx = document.getElementById('price-chart').getContext('2d');
-                    chartInstance = new Chart(ctx, {
-                        type: 'line',
-                        data: {
-                            labels: data.labels,  // Даты
-                            datasets: [{
-                                label: `Цена товара: ${productName}`,
-                                data: data.prices,  // Цены
-                                borderColor: 'rgba(75, 192, 192, 1)',
-                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                                borderWidth: 2,
-                                fill: true,
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: {
-                                title: {
-                                    display: true,
-                                    text: `Изменение цены товара: ${productName}`
-                                }
-                            },
-                            scales: {
-                                x: {
-                                    title: {
-                                        display: true,
-                                        text: 'Дата'
-                                    }
-                                },
-                                y: {
-                                    title: {
-                                        display: true,
-                                        text: 'Цена'
-                                    }
-                                }
-                            }
-                        }
-                    });
-                })
-                .catch(error => console.log('Ошибка:', error));
-        }
-    </script>
+    <!-- Подключение внешнего JavaScript-файла -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

@@ -83,9 +83,9 @@ def chart():
     product_name = request.args.get('product_name', '')
     if product_name:
         try:
-            conn = sqlite3.connect('wishmaster.db')
+            conn = sqlite3.connect('db/wishmaster.db')
             query = """
-            SELECT timestamp, price_int
+            SELECT timestamp, price_int, stock_status
             FROM products
             WHERE name = ?
             ORDER BY timestamp
@@ -99,7 +99,8 @@ def chart():
             # Преобразуем данные в список словарей
             data = {
                 'labels': df['timestamp'].tolist(),  # Даты
-                'prices': df['price_int'].tolist()  # Цены
+                'prices': df['price_int'].tolist(),  # Цены
+                'stock_status': df['stock_status'].tolist()  # Статус наличия
             }
             return jsonify(data)
         except Exception as e:
