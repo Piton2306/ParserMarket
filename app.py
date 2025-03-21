@@ -1,22 +1,27 @@
-from flask import Flask, render_template, request, jsonify
-import sqlite3
-import pandas as pd
-import matplotlib.pyplot as plt
-import io
 import base64
-from datetime import datetime
+import io
+import sqlite3
+
 import matplotlib
+import matplotlib.pyplot as plt
+import pandas as pd
+from flask import Flask, render_template, request, jsonify
+
 matplotlib.use('Agg')
 app = Flask(__name__)
+
 
 # Функция для подключения к базе данных и получения товаров
 def get_products(query=""):
     conn = sqlite3.connect('db/wishmaster.db')  # Убедитесь, что путь правильный
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT name FROM products WHERE name LIKE ?", ('%' + query + '%',))
-    products = [row[0] for row in cursor.fetchall()]
+    cursor.execute(
+        "SELECT DISTINCT name FROM products WHERE NOT stock_status LIKE 'Ожидаем в ближайшее время' and name LIKE ?",
+        ('%' + query + '%',))
+    products = [row[0:1] for row in cursor.fetchall()]
     conn.close()
     return products
+
 
 # Функция для построения графика для выбранного товара
 def create_price_chart(product_name):
@@ -74,9 +79,11 @@ def create_price_chart(product_name):
         print(f"Ошибка при создании графика: {e}")
         return None
 
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/search', methods=['GET'])
 def search():
@@ -84,12 +91,14 @@ def search():
     products = get_products(query)
     return jsonify(products)
 
+
 @app.route('/chart', methods=['GET'])
 def chart():
     product_name = request.args.get('product_name', '')
+    print(product_name)
     if product_name:
         try:
-            conn = sqlite3.connect('db/wishmaster.db')  # Убедитесь, что путь правильный
+            conn = sqlite3.connect('db/wishmaster.db') # Убедитесь, что путь правильный
             query = """
             SELECT timestamp, price_int, stock_status
             FROM products
@@ -97,6 +106,7 @@ def chart():
             ORDER BY timestamp
             """
             df = pd.read_sql_query(query, conn, params=(product_name,))
+            print(df)
             conn.close()
 
             if df.empty:
@@ -112,6 +122,7 @@ def chart():
         except Exception as e:
             return jsonify({'error': f'Ошибка при получении данных: {e}'})
     return jsonify({'error': 'Товар не найден'})
+
 
 if __name__ == '__main__':
     app.run(debug=True)
