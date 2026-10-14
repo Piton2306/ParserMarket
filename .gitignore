@@ -4,3 +4,6 @@
 /wishmaster/wishmaster_parser.log
 /db/wishmaster.db
 /logs/
+__pycache__
+/charts/
+
